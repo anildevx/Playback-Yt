@@ -37,6 +37,7 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(100);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const backgroundPlaybackRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingVideoId = useRef<string | null>(null);
   const isAPIReady = useRef(false);
   const intendedPlayState = useRef<'playing' | 'paused'>('paused');
@@ -119,14 +120,34 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
       const isVisible = !document.hidden;
       isPageVisible.current = isVisible;
 
-      // When page becomes visible again and user wanted to play, resume
-      if (!wasVisible && isVisible && intendedPlayState.current === 'playing') {
-        // Small delay to ensure page is fully visible
-        setTimeout(() => {
-          if (isPageVisible.current && playerRef.current) {
-            playerRef.current.playVideo();
-          }
-        }, 100);
+      if (!isVisible && intendedPlayState.current === 'playing') {
+        // Page went to background while playing - start background playback keeper
+        if (!backgroundPlaybackRef.current) {
+          backgroundPlaybackRef.current = setInterval(() => {
+            if (!isPageVisible.current && intendedPlayState.current === 'playing' && playerRef.current) {
+              // Keep trying to play in background
+              const state = playerRef.current.getPlayerState();
+              if (state !== 1) { // 1 = YT.PlayerState.PLAYING
+                playerRef.current.playVideo();
+              }
+            }
+          }, 500); // Check every 500ms
+        }
+      } else if (isVisible) {
+        // Page became visible - stop background keeper
+        if (backgroundPlaybackRef.current) {
+          clearInterval(backgroundPlaybackRef.current);
+          backgroundPlaybackRef.current = null;
+        }
+
+        // Resume if needed
+        if (!wasVisible && intendedPlayState.current === 'playing') {
+          setTimeout(() => {
+            if (isPageVisible.current && playerRef.current) {
+              playerRef.current.playVideo();
+            }
+          }, 100);
+        }
       }
     };
 
@@ -134,6 +155,7 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (backgroundPlaybackRef.current) clearInterval(backgroundPlaybackRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [initPlayer]);
@@ -154,6 +176,11 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
 
   const pause = useCallback(() => {
     intendedPlayState.current = 'paused';
+    // Clear background playback keeper when user pauses
+    if (backgroundPlaybackRef.current) {
+      clearInterval(backgroundPlaybackRef.current);
+      backgroundPlaybackRef.current = null;
+    }
     playerRef.current?.pauseVideo();
   }, []);
 
