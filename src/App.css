@@ -564,3 +564,119 @@ body {
 .mini-play-pause:hover {
   background: var(--surface2);
 }
+
+/* ─── Background Hint (Player View) ───────────────────── */
+.bg-hint-player {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin: 0 16px 8px;
+}
+
+.bg-hint-player p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ─── PWA Install Prompt ──────────────────────────────── */
+.install-prompt {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background: linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 20px 16px;
+  z-index: 1000;
+  animation: slideUp 0.4s ease-out;
+  border-top: 1px solid var(--border);
+}
+
+.install-prompt-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.install-prompt-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.install-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.install-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px 0;
+}
+
+.install-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.install-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-dismiss {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-dismiss:hover {
+  background: var(--surface);
+}
+
+.btn-install {
+  flex: 1;
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-install:hover {
+  opacity: 0.9;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

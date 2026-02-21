@@ -42,7 +42,9 @@ export default function App() {
   const [metaError, setMetaError] = useState('');
   const [history, setHistory] = useState<HistoryItem[]>(loadHistory);
   const [loading, setLoading] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const loadedRef = useRef(false);
+  const deferredPromptRef = useRef<any>(null);
 
   const { load, play, pause, seek, setVolume, playerState, currentTime, duration, volume } =
     useYouTubePlayer(PLAYER_CONTAINER_ID);
@@ -63,7 +65,7 @@ export default function App() {
         setVideoMeta(meta);
         setView('player');
         setIsMini(false);
-        load(id);
+        load(id, true); // Auto-play when loading new video
 
         // Update history
         const item: HistoryItem = { videoId: id, ...meta };
@@ -125,6 +127,47 @@ export default function App() {
     }
   }, [playerState]);
 
+  // PWA Install prompt
+  useEffect(() => {
+    const hasSeenPrompt = localStorage.getItem('pwa-install-prompt-seen');
+
+    if (!hasSeenPrompt) {
+      // Show prompt after 2 seconds
+      const timer = setTimeout(() => {
+        setShowInstallPrompt(true);
+      }, 2000);
+
+      // Capture the beforeinstallprompt event
+      const handleBeforeInstallPrompt = (e: any) => {
+        e.preventDefault();
+        deferredPromptRef.current = e;
+      };
+
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      };
+    }
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPromptRef.current) {
+      deferredPromptRef.current.prompt();
+      const { outcome } = await deferredPromptRef.current.userChoice;
+      console.log(`User response to install prompt: ${outcome}`);
+      deferredPromptRef.current = null;
+    }
+    setShowInstallPrompt(false);
+    localStorage.setItem('pwa-install-prompt-seen', 'true');
+  };
+
+  const handleDismissInstall = () => {
+    setShowInstallPrompt(false);
+    localStorage.setItem('pwa-install-prompt-seen', 'true');
+  };
+
   const showMini = isMini && videoMeta && (playerState === 'playing' || playerState === 'paused' || playerState === 'buffering');
 
   return (
@@ -181,6 +224,10 @@ export default function App() {
             </button>
           </div>
 
+          <div className="bg-hint-player">
+            <p>💡 Minimize and use notification controls for background playback</p>
+          </div>
+
           <VideoInfo videoId={videoId} meta={videoMeta} />
 
           <PlayerControls
@@ -204,6 +251,28 @@ export default function App() {
           onPause={handlePause}
           onExpand={handleExpand}
         />
+      )}
+
+      {showInstallPrompt && (
+        <div className="install-prompt">
+          <div className="install-prompt-content">
+            <div className="install-prompt-header">
+              <div className="install-icon">📱</div>
+              <div>
+                <h3 className="install-title">Install PlayBack</h3>
+                <p className="install-subtitle">Install as an app for quick access and better experience</p>
+              </div>
+            </div>
+            <div className="install-actions">
+              <button className="btn-dismiss" onClick={handleDismissInstall}>
+                Maybe Later
+              </button>
+              <button className="btn-install" onClick={handleInstallClick}>
+                Install App
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
