@@ -1,9 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ],
@@ -22,7 +23,7 @@
       ]
     },
     {
-      "source": "/workbox-*.js",
+      "source": "/workbox-:path*.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -53,7 +54,7 @@
       ]
     },
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "headers": [
         {
           "key": "X-Content-Type-Options",
