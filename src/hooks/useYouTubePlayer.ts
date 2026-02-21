@@ -149,9 +149,7 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
 
   const play = useCallback(() => {
     intendedPlayState.current = 'playing';
-    if (isPageVisible.current) {
-      playerRef.current?.playVideo();
-    }
+    playerRef.current?.playVideo();
   }, []);
 
   const pause = useCallback(() => {
