@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 export type PlayerState = 'unstarted' | 'playing' | 'paused' | 'buffering' | 'ended' | 'idle';
 
 export interface YouTubePlayerControls {
-  load: (videoId: string) => void;
+  load: (videoId: string, autoPlay?: boolean) => void;
   play: () => void;
   pause: () => void;
   seek: (seconds: number) => void;
@@ -37,10 +37,8 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(100);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const backgroundPlaybackRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingVideoId = useRef<string | null>(null);
   const isAPIReady = useRef(false);
-  const intendedPlayState = useRef<'playing' | 'paused'>('paused');
   const isPageVisible = useRef(!document.hidden);
 
   const initPlayer = useCallback(() => {
@@ -55,42 +53,37 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
         playsinline: 1,
         rel: 0,
         modestbranding: 1,
+        enablejsapi: 1,
+        origin: window.location.origin,
       },
       events: {
         onReady: () => {
           if (pendingVideoId.current) {
-            playerRef.current?.loadVideoById(pendingVideoId.current);
+            playerRef.current?.cueVideoById(pendingVideoId.current);
             pendingVideoId.current = null;
           }
         },
         onStateChange: (event: YT.OnStateChangeEvent) => {
           const state = YT_STATE_MAP[event.data] ?? 'idle';
-
-          // Don't update state if page is hidden and player paused due to visibility
-          if (!isPageVisible.current && state === 'paused' && intendedPlayState.current === 'playing') {
-            // Player paused due to background, keep our intended state
-            return;
-          }
-
           setPlayerState(state);
 
           if (state === 'playing') {
-            intendedPlayState.current = 'playing';
             setDuration(playerRef.current?.getDuration() ?? 0);
+
+            // Start time tracking
+            if (intervalRef.current) clearInterval(intervalRef.current);
             intervalRef.current = setInterval(() => {
               setCurrentTime(playerRef.current?.getCurrentTime() ?? 0);
             }, 1000);
           } else {
+            // Clear time tracking interval
             if (intervalRef.current) {
               clearInterval(intervalRef.current);
               intervalRef.current = null;
             }
+
             if (state === 'ended') {
               setCurrentTime(0);
-              intendedPlayState.current = 'paused';
-            } else if (state === 'paused' && isPageVisible.current) {
-              // Only update intended state if pause happened while visible (user action)
-              intendedPlayState.current = 'paused';
             }
           }
         },
@@ -114,39 +107,16 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
       };
     }
 
-    // Handle visibility changes to manage background playback
+    // Track visibility and pause when hidden to prevent stuttering
     const handleVisibilityChange = () => {
-      const wasVisible = isPageVisible.current;
       const isVisible = !document.hidden;
       isPageVisible.current = isVisible;
 
-      if (!isVisible && intendedPlayState.current === 'playing') {
-        // Page went to background while playing - start background playback keeper
-        if (!backgroundPlaybackRef.current) {
-          backgroundPlaybackRef.current = setInterval(() => {
-            if (!isPageVisible.current && intendedPlayState.current === 'playing' && playerRef.current) {
-              // Keep trying to play in background
-              const state = playerRef.current.getPlayerState();
-              if (state !== 1) { // 1 = YT.PlayerState.PLAYING
-                playerRef.current.playVideo();
-              }
-            }
-          }, 500); // Check every 500ms
-        }
-      } else if (isVisible) {
-        // Page became visible - stop background keeper
-        if (backgroundPlaybackRef.current) {
-          clearInterval(backgroundPlaybackRef.current);
-          backgroundPlaybackRef.current = null;
-        }
-
-        // Resume if needed
-        if (!wasVisible && intendedPlayState.current === 'playing') {
-          setTimeout(() => {
-            if (isPageVisible.current && playerRef.current) {
-              playerRef.current.playVideo();
-            }
-          }, 100);
+      // When page becomes hidden, explicitly pause to prevent auto-resume attempts
+      if (!isVisible && playerRef.current) {
+        const state = playerRef.current.getPlayerState();
+        if (state === 1) { // 1 = YT.PlayerState.PLAYING
+          playerRef.current.pauseVideo();
         }
       }
     };
@@ -155,32 +125,31 @@ export function useYouTubePlayer(containerId: string): YouTubePlayerControls {
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (backgroundPlaybackRef.current) clearInterval(backgroundPlaybackRef.current);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [initPlayer]);
 
-  const load = useCallback((videoId: string) => {
-    intendedPlayState.current = 'playing'; // Loading a video implies intent to play
+  const load = useCallback((videoId: string, autoPlay = false) => {
     if (playerRef.current && isAPIReady.current) {
-      playerRef.current.loadVideoById(videoId);
+      if (autoPlay && isPageVisible.current) {
+        // Use loadVideoById for auto-play (only when page is visible)
+        playerRef.current.loadVideoById(videoId);
+      } else {
+        // Use cueVideoById to just load without playing
+        playerRef.current.cueVideoById(videoId);
+      }
     } else {
       pendingVideoId.current = videoId;
     }
   }, []);
 
   const play = useCallback(() => {
-    intendedPlayState.current = 'playing';
+    // Allow play even when hidden - this is for Media Session API
+    // which provides user gesture context
     playerRef.current?.playVideo();
   }, []);
 
   const pause = useCallback(() => {
-    intendedPlayState.current = 'paused';
-    // Clear background playback keeper when user pauses
-    if (backgroundPlaybackRef.current) {
-      clearInterval(backgroundPlaybackRef.current);
-      backgroundPlaybackRef.current = null;
-    }
     playerRef.current?.pauseVideo();
   }, []);
 
